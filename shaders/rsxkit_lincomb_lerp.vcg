@@ -22,7 +22,7 @@
  * w) y así el RSX interpola X_j lineal en pantalla, como el sombreado del
  * RDP de la N64 (rsxkit_affine_shade).
  */
-void main(float4 position : POSITION, float2 st : TEXCOORD0, float4 color : COLOR0, float4 prev : TEXCOORD2, float2 st1 : TEXCOORD1,
+void main(float4 position : POSITION, float2 st : TEXCOORD0, float4 color : COLOR0, float4 fogfactor : COLOR1, float4 prev : TEXCOORD2, float2 st1 : TEXCOORD1,
 	uniform float4 space, uniform float4 xf[2], uniform float4 k[21], uniform float4 fog,
 	uniform float4 fogsel[2], uniform float4 lerp, uniform float4 affine,
 	out float4 oPosition : POSITION, out float4 oColor : COLOR0, out float4 oUV : TEXCOORD0,
@@ -35,7 +35,7 @@ void main(float4 position : POSITION, float2 st : TEXCOORD0, float4 color : COLO
 	oColor = color;
 	oUV = float4(st * xf[0].xy + xf[0].zw, st1 * xf[1].xy + xf[1].zw);
 	float4 ca = color.aaaa;
-	float f = fog.a * color.a;
+	float f = fog.a * fogfactor.r;
 	float4 keep = float4(1.0 - f, 1.0 - f, 1.0 - f, 1.0);
 	float4 fa = float4(fog.rgb * f, 0.0);
 	float wm = 1.0 + affine.x * (p.w - 1.0);
