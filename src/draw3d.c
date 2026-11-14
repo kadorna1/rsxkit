@@ -94,7 +94,7 @@ static struct {
 	float lerp_t;           /* la de la constante «lerp» subida, si lerp_valid */
 	int lerp_valid;
 	/* Estado puesto. */
-	uint8_t blend, cull, depth, alpha_ref, alpha_func, depth_func;
+	uint8_t blend, cull, depth, alpha_ref, alpha_func, depth_func, color_mask;
 	uint8_t line_width;  /* ancho de línea (6.3) de las aristas; 0: no se sabe */
 	struct tex_state tex[2];
 	uint32_t vb_offset;
@@ -258,6 +258,11 @@ static void bind_arrays(void)
 	rsBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX1, 0, o + 32, stride, 2, GCM_VERTEX_DATA_TYPE_F32, loc);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_COLOR0, 0, o + (d3.color_aux ? 28 : 24), stride, 4,
 				 GCM_VERTEX_DATA_TYPE_U8, loc);
+	if (!d3.color_aux)
+		rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_COLOR1, 0, o + 28, stride, 4,
+				 GCM_VERTEX_DATA_TYPE_U8, loc); 
+	else
+		rsBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_COLOR1, 0, 0, 0, 0, GCM_VERTEX_DATA_TYPE_F32, GCM_LOCATION_RSX);
 	if (d3.prev_set) {
 		u8 ploc = d3.prev_location == RSXKIT_MEM_MAIN ? GCM_LOCATION_CELL : GCM_LOCATION_RSX;
 		rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX2, 0, d3.prev_offset, 16, 4,
@@ -336,9 +341,10 @@ static void set_blend(uint8_t blend, uint8_t dsta, uint8_t color_mask)
 	if (dsta == DSTA_ALPHA_ONLY)
 		blend = RSXKIT_BLEND_OFF;
 	uint8_t key = (uint8_t)(blend | dsta << 5);
-	if (key == d3.blend)
+	if (key == d3.blend && color_mask == d3.color_mask)
 		return;
 	d3.blend = key;
+	d3.color_mask = color_mask;
 	bool own = blend == RSXKIT_BLEND_ALPHA_MAX || blend == RSXKIT_BLEND_REPLACE_MIN_ALPHA ||
 		   blend == RSXKIT_BLEND_KEEP_MIN_ALPHA;
 	bool max = !own && alpha && dsta == RSXKIT_DSTA_MAX;
@@ -467,15 +473,16 @@ static void set_cull(uint8_t cull)
 	rsxSetCullFace(ctx, cull == RSXKIT_CULL_FRONT ? GCM_CULL_FRONT : GCM_CULL_BACK);
 }
 
-static void set_alpha(uint8_t ref, uint8_t compare)
+static void set_alpha(uint8_t enabled, uint8_t ref, uint8_t compare)
 {
 	gcmContextData *ctx = rsxkit_g.ctx;
-	if (ref == d3.alpha_ref && compare == d3.alpha_func)
+	if (ref == d3.alpha_ref && compare == d3.alpha_func && enabled == d3.alpha_test)
 		return;
 	d3.alpha_ref = ref;
 	d3.alpha_func = compare;
-	rsxSetAlphaTestEnable(ctx, ref ? GCM_TRUE : GCM_FALSE);
-	if (ref)
+	d3.alpha_test = enabled;
+	rsxSetAlphaTestEnable(ctx, enabled ? GCM_TRUE : GCM_FALSE);
+	if (enabled)
 		rsxSetAlphaFunc(ctx, compare_to_gcm(compare, GCM_GEQUAL), ref);
 }
 
@@ -697,7 +704,7 @@ static void draw_triangles(const rsxkit_draw *d, uint32_t first, uint32_t count)
 	if (d3.depth & (RSXKIT_DEPTH_TEST | RSXKIT_DEPTH_WRITE))
 		set_zconst(d->depth & RSXKIT_DEPTH_CONST ? (d->z < 0.0f ? 0.0f : d->z > 1.0f ? 1.0f : d->z) : -1.0f);
 	set_cull(d->cull);
-	set_alpha(d->alpha_ref, d->alpha_func);
+	set_alpha(d->alpha_test, d->alpha_ref, d->alpha_func);
 	uint64_t sk = (uint64_t)d->stencil | ((uint64_t)d->stencil_ref << 8) |
 	              ((uint64_t)d->stencil_compare_mask << 16) | ((uint64_t)d->stencil_write_mask << 24) |
 	              ((uint64_t)d->stencil_op << 32) | ((uint64_t)d->stencil_zfail << 40) |
