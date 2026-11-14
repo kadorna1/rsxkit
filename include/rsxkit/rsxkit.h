@@ -572,6 +572,20 @@ void rsxkit_dsta_stats(uint32_t *passes, uint32_t *single, uint32_t *failed);
 extern const uint8_t rsxkit_dsta_expected[RSXKIT_DSTA_TEST_N];
 int rsxkit_dsta_selftest(uint8_t out[RSXKIT_DSTA_TEST_N]);
 
+/* Comparadores GL/GCM, usados por alpha_func, depth_func y stencil_func.
+ * RSXKIT_CMP_DEFAULT (0) conserva el comparador preestablecido de cada operación. */
+typedef enum rsxkit_compare {
+	RSXKIT_CMP_DEFAULT = 0,
+	RSXKIT_CMP_NEVER,
+	RSXKIT_CMP_LESS,
+	RSXKIT_CMP_EQUAL,
+	RSXKIT_CMP_LEQUAL,
+	RSXKIT_CMP_GREATER,
+	RSXKIT_CMP_NOTEQUAL,
+	RSXKIT_CMP_GEQUAL,
+	RSXKIT_CMP_ALWAYS,
+} rsxkit_compare;
+
 typedef struct rsxkit_draw {
 	/* Programa opcional: entradas de rsxkit_lincomb.vcg. NULL conserva la combinación. */
 	rsxkit_program *program;
@@ -582,8 +596,12 @@ typedef struct rsxkit_draw {
 	uint8_t stencil_zfail;
 	/* Operación al fallar la prueba de stencil: 0 conservar, 1 reemplazar, 2 poner a cero. */
 	uint8_t stencil_sfail;
+	uint8_t stencil_func; /* rsxkit_compare; 0 preserves legacy stencil mode */
 	uint8_t blend;      /* rsxkit_blend */
 	uint8_t dst_alpha;  /* RSXKIT_DSTA_*: alfa que deja en un destino con alfa */
+	uint8_t alpha_func; /* rsxkit_compare; 0 keeps GEQUAL */
+	uint8_t depth_func; /* rsxkit_compare; 0 selects the legacy depth flags */
+	uint8_t color_mask; /* RGBA bits 1,2,4,8; zero means all channels */
 	uint8_t cull;       /* rsxkit_cull */
 	uint8_t depth;      /* RSXKIT_DEPTH_* */
 	uint8_t alpha_ref;  /* 0: sin prueba de alfa; si no, pasa alfa >= ref/255 */
