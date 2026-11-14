@@ -94,7 +94,7 @@ static struct {
 	float lerp_t;           /* la de la constante «lerp» subida, si lerp_valid */
 	int lerp_valid;
 	/* Estado puesto. */
-	uint8_t blend, cull, depth, alpha_ref;
+	uint8_t blend, cull, depth, alpha_ref, alpha_func, depth_func;
 	uint8_t line_width;  /* ancho de línea (6.3) de las aristas; 0: no se sabe */
 	struct tex_state tex[2];
 	uint32_t vb_offset;
@@ -310,7 +310,22 @@ static void fixed_state(void)
  * canal de alfa de la mezcla no cuenta (ZERO / ONE). Las mezclas con
  * máximo o mínimo del alfa (ALPHA_MAX, REPLACE_MIN_ALPHA, KEEP_MIN_ALPHA)
  * traen su propia cuenta y no miran dst_alpha. */
-static void set_blend(uint8_t blend, uint8_t dsta)
+static u32 compare_to_gcm(uint8_t f, u32 fallback)
+{
+	switch (f) {
+	case RSXKIT_CMP_NEVER: return GCM_NEVER;
+	case RSXKIT_CMP_LESS: return GCM_LESS;
+	case RSXKIT_CMP_EQUAL: return GCM_EQUAL;
+	case RSXKIT_CMP_LEQUAL: return GCM_LEQUAL;
+	case RSXKIT_CMP_GREATER: return GCM_GREATER;
+	case RSXKIT_CMP_NOTEQUAL: return GCM_NOTEQUAL;
+	case RSXKIT_CMP_GEQUAL: return GCM_GEQUAL;
+	case RSXKIT_CMP_ALWAYS: return GCM_ALWAYS;
+	default: return fallback;
+	}
+}
+
+static void set_blend(uint8_t blend, uint8_t dsta, uint8_t color_mask)
 {
 	gcmContextData *ctx = rsxkit_g.ctx;
 	int alpha = rsxkit_bound.alpha;
@@ -394,29 +409,31 @@ static void set_blend(uint8_t blend, uint8_t dsta)
 		else if (dsta == DSTA_ALPHA_ONLY)
 			mask = GCM_COLOR_MASK_A;
 	}
+	if (color_mask) {
+		u32 requested = 0;
+		if (color_mask & 1u) requested |= GCM_COLOR_MASK_R;
+		if (color_mask & 2u) requested |= GCM_COLOR_MASK_G;
+		if (color_mask & 4u) requested |= GCM_COLOR_MASK_B;
+		if (color_mask & 8u) requested |= GCM_COLOR_MASK_A;
+		mask &= requested;
+	}
 	rsxSetColorMask(ctx, mask);
 }
 
-static void set_depth(uint8_t depth)
+static void set_depth(uint8_t depth, uint8_t compare)
 {
 	gcmContextData *ctx = rsxkit_g.ctx;
 	if (!rsxkit_bound.depth)
 		depth = 0;
-	if (depth == d3.depth)
+	if (depth == d3.depth && compare == d3.depth_func)
 		return;
 	d3.depth = depth;
-	/* Escribir sin probar: en el RSX (como en GL) la prueba apagada apaga
-	 * también la escritura, así que va con la prueba encendida y ALWAYS.
-	 * Rogue Squadron dibuja así el fondo (hangar, terreno, cielo) para
-	 * dejar la z de cada cuadro sin borrarla: sin escribirla, los modelos
-	 * se probaban contra la z de cuadros viejos y desaparecían a pedazos.
-	 * La máscara de la Lente de la Verdad de Zelda (un TEXRECT que solo
-	 * escribe z) necesita lo mismo. */
-	u32 func = !(depth & RSXKIT_DEPTH_TEST) || (depth & RSXKIT_DEPTH_ALWAYS) ? GCM_ALWAYS
-		   : (depth & RSXKIT_DEPTH_EQUAL)			       ? GCM_EQUAL
-		   : (depth & RSXKIT_DEPTH_GEQUAL)			       ? GCM_GEQUAL
-		   : (depth & RSXKIT_DEPTH_LESS)			       ? GCM_LESS
-									       : GCM_LEQUAL;
+	d3.depth_func = compare;
+	u32 fallback = !(depth & RSXKIT_DEPTH_TEST) || (depth & RSXKIT_DEPTH_ALWAYS) ? GCM_ALWAYS
+		       : (depth & RSXKIT_DEPTH_EQUAL) ? GCM_EQUAL
+		       : (depth & RSXKIT_DEPTH_GEQUAL) ? GCM_GEQUAL
+		       : (depth & RSXKIT_DEPTH_LESS) ? GCM_LESS : GCM_LEQUAL;
+	u32 func = compare_to_gcm(compare, fallback);
 	rsxSetDepthTestEnable(ctx, (depth & (RSXKIT_DEPTH_TEST | RSXKIT_DEPTH_WRITE)) ? GCM_TRUE : GCM_FALSE);
 	rsxSetDepthWriteEnable(ctx, (depth & RSXKIT_DEPTH_WRITE) ? GCM_TRUE : GCM_FALSE);
 	rsxSetPolygonOffsetFillEnable(ctx, (depth & RSXKIT_DEPTH_OFFSET) ? GCM_TRUE : GCM_FALSE);
@@ -450,15 +467,16 @@ static void set_cull(uint8_t cull)
 	rsxSetCullFace(ctx, cull == RSXKIT_CULL_FRONT ? GCM_CULL_FRONT : GCM_CULL_BACK);
 }
 
-static void set_alpha(uint8_t ref)
+static void set_alpha(uint8_t ref, uint8_t compare)
 {
 	gcmContextData *ctx = rsxkit_g.ctx;
-	if (ref == d3.alpha_ref)
+	if (ref == d3.alpha_ref && compare == d3.alpha_func)
 		return;
 	d3.alpha_ref = ref;
+	d3.alpha_func = compare;
 	rsxSetAlphaTestEnable(ctx, ref ? GCM_TRUE : GCM_FALSE);
 	if (ref)
-		rsxSetAlphaFunc(ctx, GCM_GEQUAL, ref);
+		rsxSetAlphaFunc(ctx, compare_to_gcm(compare, GCM_GEQUAL), ref);
 }
 
 /* r: las tijeras en píxeles del destino (rsxkit_logical_rect), no vacías. */
@@ -673,22 +691,25 @@ static void draw_triangles(const rsxkit_draw *d, uint32_t first, uint32_t count)
 	if (!g->arrays_bound)
 		bind_arrays();
 	set_scissor(sc);
-	set_blend(d->blend, d->dst_alpha);
-	set_depth(d->depth);
+	set_blend(d->blend, d->dst_alpha, d->color_mask);
+	set_depth(d->depth, d->depth_func);
 	/* Sin prueba ni escritura la z no importa: no se toca el viewport. */
 	if (d3.depth & (RSXKIT_DEPTH_TEST | RSXKIT_DEPTH_WRITE))
 		set_zconst(d->depth & RSXKIT_DEPTH_CONST ? (d->z < 0.0f ? 0.0f : d->z > 1.0f ? 1.0f : d->z) : -1.0f);
 	set_cull(d->cull);
-	set_alpha(d->alpha_ref);
+	set_alpha(d->alpha_ref, d->alpha_func);
 	uint64_t sk = (uint64_t)d->stencil | ((uint64_t)d->stencil_ref << 8) |
 	              ((uint64_t)d->stencil_compare_mask << 16) | ((uint64_t)d->stencil_write_mask << 24) |
 	              ((uint64_t)d->stencil_op << 32) | ((uint64_t)d->stencil_zfail << 40) |
-	              ((uint64_t)d->stencil_sfail << 48);
+	              ((uint64_t)d->stencil_sfail << 48) | ((uint64_t)d->stencil_func << 56);
 	if (!incremental || !d3.stencil_valid || d3.stencil_key != sk) {
 		rsxSetStencilTestEnable(ctx, d->stencil ? GCM_TRUE : GCM_FALSE);
 		if (d->stencil) {
 			rsxSetStencilMask(ctx, d->stencil_write_mask);
-			rsxSetStencilFunc(ctx, d->stencil == 2 ? GCM_NOTEQUAL : d->stencil == 3 ? GCM_EQUAL : GCM_ALWAYS, d->stencil_ref, d->stencil_compare_mask);
+			rsxSetStencilFunc(ctx,
+				d->stencil_func ? compare_to_gcm(d->stencil_func, GCM_ALWAYS) :
+				(d->stencil == 2 ? GCM_NOTEQUAL : d->stencil == 3 ? GCM_EQUAL : GCM_ALWAYS),
+				d->stencil_ref, d->stencil_compare_mask);
 			rsxSetStencilOp(ctx, d->stencil_sfail == 2 ? GCM_ZERO : d->stencil_sfail ? GCM_REPLACE : GCM_KEEP,
 			                d->stencil_zfail == 2 ? GCM_ZERO : d->stencil_zfail ? GCM_REPLACE : GCM_KEEP,
 			                d->stencil_op == 2 ? GCM_KEEP : d->stencil_op ? GCM_INVERT : GCM_REPLACE);
