@@ -429,16 +429,17 @@ void rsxkit_target_present(rsxkit_target *t, const rsxkit_rect *src, uint32_t im
 
 /* ---- Dibujo 3D ------------------------------------------------------------------ */
 
-/* Vértice de 32 bytes: posición homogénea en el espacio lógico (x/w, y/w en
- * píxeles lógicos, z/w en [0, 1], w > 0 delante), coordenadas de textura y
- * color RGBA de 8 bits. `pad` puede llevar un segundo color RGBA de 8 bits
- * que sustituye a `rgba` en los dibujos siguientes a
- * rsxkit_vertices_color_aux(1) (datos por vértice para un programa propio). */
+/* Vértice de 40 bytes: posición homogénea, dos juegos de coordenadas de
+ * textura y color RGBA. `pad` puede llevar el segundo color RGBA de 8 bits
+ * que sustituye a `rgba` tras rsxkit_vertices_color_aux(1). `st1` alimenta
+ * TEXCOORD1 para la segunda textura; el atributo de posiciones previas usado
+ * por rsxkit_vertices_prev se separa en TEXCOORD2. */
 typedef struct rsxkit_vertex {
 	float pos[4];
 	float st[2];
 	uint8_t rgba[4];
 	uint32_t pad;
+	float st1[2];
 } rsxkit_vertex;
 
 enum { RSXKIT_MEM_LOCAL = 0, RSXKIT_MEM_MAIN = 1 };
