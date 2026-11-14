@@ -599,6 +599,7 @@ typedef struct rsxkit_draw {
 	uint8_t stencil_func; /* rsxkit_compare; 0 preserves legacy stencil mode */
 	uint8_t blend;      /* rsxkit_blend */
 	uint8_t dst_alpha;  /* RSXKIT_DSTA_*: alfa que deja en un destino con alfa */
+	uint8_t alpha_test; /* 0 off, 1 on; separates enabled state from ref 0 */
 	uint8_t alpha_func; /* rsxkit_compare; 0 keeps GEQUAL */
 	uint8_t depth_func; /* rsxkit_compare; 0 selects the legacy depth flags */
 	uint8_t color_mask; /* RGBA bits 1,2,4,8; zero means all channels */
