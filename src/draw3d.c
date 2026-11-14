@@ -255,7 +255,7 @@ static void bind_arrays(void)
 	const u8 stride = sizeof(rsxkit_vertex);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_POS, 0, o + 0, stride, 4, GCM_VERTEX_DATA_TYPE_F32, loc);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX0, 0, o + 16, stride, 2, GCM_VERTEX_DATA_TYPE_F32, loc);
-	rsBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX1, 0, o + 32, stride, 2, GCM_VERTEX_DATA_TYPE_F32, loc);
+	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX1, 0, o + 32, stride, 2, GCM_VERTEX_DATA_TYPE_F32, loc);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_COLOR0, 0, o + (d3.color_aux ? 28 : 24), stride, 4,
 				 GCM_VERTEX_DATA_TYPE_U8, loc);
 	if (!d3.color_aux)
