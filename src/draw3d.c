@@ -255,15 +255,16 @@ static void bind_arrays(void)
 	const u8 stride = sizeof(rsxkit_vertex);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_POS, 0, o + 0, stride, 4, GCM_VERTEX_DATA_TYPE_F32, loc);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX0, 0, o + 16, stride, 2, GCM_VERTEX_DATA_TYPE_F32, loc);
+	rsBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX1, 0, o + 32, stride, 2, GCM_VERTEX_DATA_TYPE_F32, loc);
 	rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_COLOR0, 0, o + (d3.color_aux ? 28 : 24), stride, 4,
 				 GCM_VERTEX_DATA_TYPE_U8, loc);
 	if (d3.prev_set) {
 		u8 ploc = d3.prev_location == RSXKIT_MEM_MAIN ? GCM_LOCATION_CELL : GCM_LOCATION_RSX;
-		rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX1, 0, d3.prev_offset, 16, 4,
+		rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX2, 0, d3.prev_offset, 16, 4,
 					 GCM_VERTEX_DATA_TYPE_F32, ploc);
 		d3.prev_bound = 1;
 	} else if (d3.prev_bound) {
-		rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX1, 0, 0, 0, 0, GCM_VERTEX_DATA_TYPE_F32,
+		rsxBindVertexArrayAttrib(g->ctx, GCM_VERTEX_ATTRIB_TEX2, 0, 0, 0, 0, GCM_VERTEX_DATA_TYPE_F32,
 					 GCM_LOCATION_RSX);
 		d3.prev_bound = 0;
 	}
